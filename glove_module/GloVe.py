@@ -1,11 +1,13 @@
 from __future__ import division
 
 import datetime
+import pickle
 import sys
 from random import shuffle
 import tensorflow as tf
 import data_helper
 from glove_module import config
+
 
 class GloveModule:
     def batchify(self, batch_size):
@@ -29,14 +31,16 @@ class GloveModule:
                 self.focal_input = tf.placeholder(tf.int32, shape=[config.BATCH_SIZE])  # tf переменная -
                 self.context_input = tf.placeholder(tf.int32, shape=[config.BATCH_SIZE])  # tf переменная -
                 self.cooccurrence_count = tf.placeholder(tf.float32, shape=[config.BATCH_SIZE])  # tf переменная -
-
-                focal_embeddings = tf.Variable(
+                self.embeddings = tf.Variable(
                     tf.random_uniform([vocab_size, config.EMBEDDING_SIZE], 1.0, -1.0)
                 )
+                # focal_embeddings = tf.Variable(
+                #     tf.random_uniform([vocab_size, config.EMBEDDING_SIZE], 1.0, -1.0)
+                # )
 
-                context_embeddings = tf.Variable(
-                    tf.random_uniform([vocab_size, config.EMBEDDING_SIZE], 1.0, -1.0)
-                )
+                # context_embeddings = tf.Variable(
+                #     tf.random_uniform([vocab_size, config.EMBEDDING_SIZE], 1.0, -1.0)
+                # )
 
                 focal_biases = tf.Variable(
                     tf.random_uniform([vocab_size], 1.0, -1.0)
@@ -46,8 +50,8 @@ class GloveModule:
                     tf.random_uniform([vocab_size], 1.0, -1.0)
                 )
 
-                focal_embedding = tf.nn.embedding_lookup([focal_embeddings], self.focal_input)
-                context_embedding = tf.nn.embedding_lookup([context_embeddings], self.context_input)
+                focal_embedding = tf.nn.embedding_lookup([self.embeddings], self.focal_input)
+                context_embedding = tf.nn.embedding_lookup([self.embeddings], self.context_input)
                 focal_bias = tf.nn.embedding_lookup([focal_biases], self.focal_input)
                 context_bias = tf.nn.embedding_lookup([context_biases], self.context_input)
 
@@ -72,9 +76,8 @@ class GloveModule:
 
                 single_losses = tf.multiply(weighting_factor, distance_expr)
                 self.total_loss = tf.reduce_sum(single_losses)
+                tf.summary.scalar('loss', self.total_loss)
                 self.optimizer = tf.train.AdagradOptimizer(config.LEARNING_RATE).minimize(self.total_loss)
-
-                self.combined_embeddings = tf.add(focal_embeddings, context_embeddings)
 
     def begin(self):
         # self.cooccurrences = [(pos[0], pos[1], count) for pos, count in self.cooccurrence_matrix]
@@ -86,6 +89,8 @@ class GloveModule:
         print("=================")
         sys.stdout.flush()
         with tf.Session(graph=self.graph) as session:
+            merged = tf.summary.merge_all()
+            batch_writer = tf.summary.FileWriter('./logs/batch')
             tf.initialize_all_variables().run()
             for epoch in range(config.NUM_EPOCHS):
                 shuffle(self.batches)
@@ -98,13 +103,15 @@ class GloveModule:
                     if len(counts) != config.BATCH_SIZE:
                         continue
                     feed_dict = {self.focal_input: i_s, self.context_input: j_s, self.cooccurrence_count: counts}
-                    _, total_loss_, = session.run([self.optimizer, self.total_loss], feed_dict=feed_dict)
+                    summaries, _, total_loss_, = session.run(
+                        [merged, self.optimizer, self.total_loss], feed_dict=feed_dict)
                     accumulated_loss += total_loss_
                     if (batch_index + 1) % config.REPORT_BATCH_SIZE == 0:
                         print("Epoch: {0}/{1}".format(epoch + 1, config.NUM_EPOCHS))
                         print("Batch: {0}/{1}".format(batch_index + 1, len(self.batches)))
                         print("Average loss: {}".format(accumulated_loss / config.REPORT_BATCH_SIZE))
                         print("-----------------")
+                        batch_writer.add_summary(summaries, epoch * len(self.batches) + batch_index)
                         sys.stdout.flush()
                         accumulated_loss = 0
                 # if (epoch + 1) % config.TSNE_EPOCH_FREQ == 0:
@@ -112,15 +119,18 @@ class GloveModule:
                 #     print("-----------------")
                 #     sys.stdout.flush()
                 #     current_embeddings = self.combined_embeddings.eval()
-                    # output_tsne(current_embeddings, "epoch{:02d}.png".format(epoch + 1))
+                # output_tsne(current_embeddings, "epoch{:02d}.png".format(epoch + 1))
                 print("Epoch finished: {}".format(datetime.datetime.now().time()))
                 print("=================")
-                sys.stdout.flush()
-        final_embeddings = self.combined_embeddings.eval()
-        print("End: {}".format(datetime.datetime.now().time()))
-        return final_embeddings
 
+                sys.stdout.flush()
+            batch_writer.close()
+            final_embeddings = self.embeddings.eval()
+            print("End: {}".format(datetime.datetime.now().time()))
+            return final_embeddings
 
 
 glove_instance = GloveModule()
-glove_instance.begin()
+embeddings = glove_instance.begin()
+with open('data/emb/glove{}.pkl'.format(config.EMBEDDING_SIZE), 'rb+') as f:
+    pickle.dump(embeddings, f, protocol=4)
