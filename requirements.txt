@@ -1,4 +1,7 @@
+nltk
+tflearn
 numpy
 requests
 pandas
+scikit_learn
 tensorflow
