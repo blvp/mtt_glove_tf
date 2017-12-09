@@ -137,7 +137,7 @@ if __name__ == '__main__':
     data = load_from_path('./data/emails/raw')
     df = pd.DataFrame(data, columns=['label', 'content'])
     df = shuffle(df)
-    labels_encoded = pd.get_dummies(df['label'], columns=['ham', 'spam'])
+    labels_encoded = pd.get_dummies(df['label'], columns=['ham', 'spam']).as_matrix()
     print('Split dataset to train/test')
     X_train, X_test, y_train, y_test = train_test_split(df['content'], labels_encoded, test_size=0.3)
     print('Train size: ', len(X_train))
@@ -155,12 +155,13 @@ if __name__ == '__main__':
         tensorboard_verbose=0,
         tensorboard_dir='./logs/bow_mlp/'
     )
+    del df, bow, X_train, X_test, labels_encoded, data
     model.fit(
         X_train_encoded,
         y_train,
         show_metric=True,
-        n_epoch=25,
+        n_epoch=10,
         validation_set=(X_test_encoded, y_test),
         shuffle=True,
-        batch_size=1024
+        batch_size=256
     )
