@@ -3,6 +3,9 @@ from typing import List, Dict, Tuple
 from collections import defaultdict, Counter
 import numpy as np
 import pandas as pd
+import pickle
+import os
+
 
 
 def load_data(path: str):
@@ -57,3 +60,33 @@ def prepare_corpus(path: str, context_size: int = 5, min_occurrences: int = 3) -
         coocur_matrix[context_word_id[0], word_id[0]] += coocur
 
     return df['word'].to_dict(), coocur_matrix
+
+
+def get_wiki_corpus_and_dump(
+        wiki_file_path,
+        context_size=5,
+        min_occurences=3,
+        save_path='./data/wiki_prepared/',
+        overwrite=False
+):
+    vocab_file = os.path.join(save_path, 'vocab.pkl')
+    coocur_file = os.path.join(save_path, 'coocur.pkl')
+    if not overwrite:
+        if os.path.exists(vocab_file) and os.path.exists(coocur_file):
+            with open(vocab_file, 'rb+') as f:
+                vocab = pickle.load(f)
+            with open(coocur_file, 'rb+') as f:
+                coocur_mat = pickle.load(f)
+        else:
+            raise EnvironmentError("wrong usage of method: when using overwrite=False, please make sure that "
+                                   "vocab.pkl and coocur.pkl exists in path %s".format(save_path))
+    else:
+        vocab, coocur_mat = prepare_corpus(wiki_file_path, context_size, min_occurences)
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        with open(vocab_file, 'wb+') as f:
+            pickle.dump(vocab, f)
+        with open(coocur_file, 'wb+') as f:
+            pickle.dump(coocur_mat, f)
+    return vocab, coocur_mat
+
