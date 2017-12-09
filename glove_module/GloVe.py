@@ -8,7 +8,6 @@ import tensorflow as tf
 import data_helper
 from glove_module import config
 
-
 class GloveModule:
     def batchify(self, *matrix):
         for i in range(0, len(matrix[0]), config.BATCH_SIZE):
@@ -113,12 +112,6 @@ class GloveModule:
                         batch_writer.add_summary(summaries, epoch * len(self.batches) + batch_index)
                         sys.stdout.flush()
                         accumulated_loss = 0
-                # if (epoch + 1) % config.TSNE_EPOCH_FREQ == 0:
-                #     print("Outputting t-SNE: {}".format(datetime.datetime.now().time()))
-                #     print("-----------------")
-                #     sys.stdout.flush()
-                #     current_embeddings = self.combined_embeddings.eval()
-                # output_tsne(current_embeddings, "epoch{:02d}.png".format(epoch + 1))
                 print("Epoch finished: {}".format(datetime.datetime.now().time()))
                 print("=================")
 
@@ -126,10 +119,15 @@ class GloveModule:
             batch_writer.close()
             final_embeddings = self.embeddings.eval()
             print("End: {}".format(datetime.datetime.now().time()))
-            return final_embeddings
+            final_dict = {}
+            for word, idx in self.vocab.items():
+                final_dict[word] = final_embeddings[idx, :]
+            return final_dict
 
 
 glove_instance = GloveModule()
 embeddings = glove_instance.begin()
-with open('data/emb/glove{}.pkl'.format(config.EMBEDDING_SIZE), 'rb+') as f:
+
+
+with open('data/emb/glove{}.pkl'.format(config.EMBEDDING_SIZE), 'wb+') as f:
     pickle.dump(embeddings, f, protocol=4)
