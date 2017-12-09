@@ -1,15 +1,12 @@
-from typing import List, Dict, Tuple
-
+import argparse
+import os
+import pickle
 from collections import defaultdict, Counter
+from typing import List, Dict
+
 import numpy as np
 import pandas as pd
-import pickle
-import os
-
-import argparse
-
-import sys
-
+from time import clock
 
 def load_data(path: str):
     with open(path, 'r') as f:
@@ -32,37 +29,43 @@ def generate_contexts(sentence: List[str], context_size):
         yield window(i - context_size, i), word, window(i + 1, i + context_size)
 
 
-def prepare_corpus(path: str, context_size: int = 5, min_occurrences: int = 3) -> (Dict[str, int], np.ndarray):
+def prepare_corpus(path: str, context_size: int = 5, min_count: int = 3) -> (Dict[str, int], np.ndarray):
     """
-    :param min_occurrences:
+    :param min_count:
     :param context_size:
     :param path:
     :return: vocab and cooccurrence matrix
     """
     word_counts = Counter()
     cooccurrence = defaultdict(float)
+    st = clock()
     for sentence in load_data(path):
         word_counts.update(sentence)
         for l_ctx, word, r_ctx in generate_contexts(sentence, context_size):
-            contexts = map(lambda t: (1 / (t[0] + 1), t[1]), list(enumerate(l_ctx)) + list(enumerate(r_ctx)))
+            contexts = map(lambda t: (1 / (t[0] + 1), t[1]), list(enumerate(l_ctx[::-1])) + list(enumerate(r_ctx)))
             for coocur, context_word in contexts:
                 cooccurrence[(word, context_word)] += coocur
+                cooccurrence[(context_word, word)] += coocur
+    print("coocurrence calc time: ", clock() - st)
     # filter rare words and index every word so we get id -> word
-    df = pd.DataFrame(word_counts.items(), columns=['word', 'counts'])
-    df = df[df['counts'] > min_occurrences]
-    vocab_size = len(df)
+    st = clock()
+    df = pd.DataFrame(list(word_counts.items()), columns=['word', 'counts'])
+    df = df[df['counts'] > min_count]
+    df = df.reset_index(drop=True)
+    vocab = dict([(w, idx) for idx, w in df['word'].to_dict().items()])
+    vocab_size = len(vocab)
     coocur_matrix = np.zeros((vocab_size, vocab_size))
+    print("vocab get time: ", clock() - st)
+    print("vocab size", vocab_size)
+    st = clock()
     for key, coocur in cooccurrence.items():
         word, context_word = key
-        context_word_id = df.index[df['word'] == context_word]
-        word_id = df.index[df['word'] == word]
-        if word_id.empty or context_word_id.empty:
-            print("handle rare word {} or {}, skipping.".format(word, context_word))
-            continue
-
-        coocur_matrix[context_word_id[0], word_id[0]] += coocur
-
-    return df['word'].to_dict(), coocur_matrix
+        word_id = vocab.get(word, None)
+        context_word_id = vocab.get(context_word, None)
+        if word_id is not None and context_word_id is not None:
+            coocur_matrix[context_word_id, word_id] += coocur
+    print("coocurrence calc time", clock() - st)
+    return vocab, coocur_matrix
 
 
 def get_wiki_corpus_and_dump(
@@ -73,13 +76,14 @@ def get_wiki_corpus_and_dump(
         overwrite=False
 ):
     vocab_file = os.path.join(save_path, 'vocab.pkl')
-    coocur_file = os.path.join(save_path, 'coocur.pkl')
+    coocur_file = os.path.join(save_path, 'coocur.mat')
     if not overwrite:
         if os.path.exists(vocab_file) and os.path.exists(coocur_file):
             with open(vocab_file, 'rb+') as f:
                 vocab = pickle.load(f)
-            with open(coocur_file, 'rb+') as f:
-                coocur_mat = pickle.load(f)
+            coocur_mat = np.load(coocur_file)
+            # with open(coocur_file, 'rb+') as f:
+            #     coocur_mat = np.savetxt()
         else:
             raise EnvironmentError("wrong usage of method: when using overwrite=False, please make sure that "
                                    "vocab.pkl and coocur.pkl exists in path %s".format(save_path))
@@ -88,9 +92,10 @@ def get_wiki_corpus_and_dump(
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         with open(vocab_file, 'wb+') as f:
-            pickle.dump(vocab, f)
-        with open(coocur_file, 'wb+') as f:
-            pickle.dump(coocur_mat, f)
+            pickle.dump(vocab, f, protocol=4)
+        np.save(coocur_file, coocur_mat)
+        # with open(coocur_file, 'wb+') as f:
+        #     pickle.dump(coocur_mat, f, protocol=4)
     return vocab, coocur_mat
 
 
@@ -100,7 +105,7 @@ if __name__ == '__main__':
     par.add_argument('--save-path', type=str, help='where to store calculated coocurrences')
     par.add_argument('--context-size', type=int, help='context size for coocurrence calculation')
     par.add_argument('--min-occurrences', type=int, help='min occurrences of word pairs to occur in ds for training')
-    args = par.parse_args(sys.argv)
+    args = par.parse_args()
     get_wiki_corpus_and_dump(
         args.wiki_txt_file,
         args.context_size,
