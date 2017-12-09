@@ -122,4 +122,5 @@ data/wikimedia
 data/wiki_prepared
 data/emb
 data/emails/raw
+logs/
 .idea/
