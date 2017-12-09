@@ -2,11 +2,12 @@ import argparse
 import os
 import pickle
 from collections import defaultdict, Counter
+from time import clock
 from typing import List, Dict
 
 import numpy as np
 import pandas as pd
-from time import clock
+
 
 def load_data(path: str):
     with open(path, 'r') as f:
@@ -54,18 +55,18 @@ def prepare_corpus(path: str, context_size: int = 5, min_count: int = 3) -> (Dic
     df = df.reset_index(drop=True)
     vocab = dict([(w, idx) for idx, w in df['word'].to_dict().items()])
     vocab_size = len(vocab)
-    coocur_matrix = np.zeros((vocab_size, vocab_size))
     print("vocab get time: ", clock() - st)
     print("vocab size", vocab_size)
     st = clock()
+    coocur_new = []
     for key, coocur in cooccurrence.items():
         word, context_word = key
         word_id = vocab.get(word, None)
         context_word_id = vocab.get(context_word, None)
         if word_id is not None and context_word_id is not None:
-            coocur_matrix[context_word_id, word_id] += coocur
+            coocur_new.append((word_id, context_word_id, coocur))
     print("coocurrence calc time", clock() - st)
-    return vocab, coocur_matrix
+    return vocab, coocur_new
 
 
 def get_wiki_corpus_and_dump(
@@ -76,27 +77,25 @@ def get_wiki_corpus_and_dump(
         overwrite=False
 ):
     vocab_file = os.path.join(save_path, 'vocab.pkl')
-    coocur_file = os.path.join(save_path, 'coocur.mat')
+    coocur_file = os.path.join(save_path, 'coocur.pkl')
     if not overwrite:
         if os.path.exists(vocab_file) and os.path.exists(coocur_file):
             with open(vocab_file, 'rb+') as f:
                 vocab = pickle.load(f)
-            coocur_mat = np.load(coocur_file)
-            # with open(coocur_file, 'rb+') as f:
-            #     coocur_mat = np.savetxt()
+            with open(coocur_file, 'rb+') as f:
+                coocur = pickle.load(f)
         else:
             raise EnvironmentError("wrong usage of method: when using overwrite=False, please make sure that "
                                    "vocab.pkl and coocur.pkl exists in path %s".format(save_path))
     else:
-        vocab, coocur_mat = prepare_corpus(wiki_file_path, context_size, min_occurences)
+        vocab, coocur = prepare_corpus(wiki_file_path, context_size, min_occurences)
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         with open(vocab_file, 'wb+') as f:
             pickle.dump(vocab, f, protocol=4)
-        np.save(coocur_file, coocur_mat)
-        # with open(coocur_file, 'wb+') as f:
-        #     pickle.dump(coocur_mat, f, protocol=4)
-    return vocab, coocur_mat
+        with open(coocur_file, 'wb+') as f:
+            pickle.dump(coocur, f, protocol=4)
+    return vocab, coocur
 
 
 if __name__ == '__main__':
