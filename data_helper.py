@@ -6,6 +6,9 @@ import pandas as pd
 import pickle
 import os
 
+import argparse
+
+import sys
 
 
 def load_data(path: str):
@@ -90,3 +93,18 @@ def get_wiki_corpus_and_dump(
             pickle.dump(coocur_mat, f)
     return vocab, coocur_mat
 
+
+if __name__ == '__main__':
+    par = argparse.ArgumentParser()
+    par.add_argument('--wiki-txt-file', type=str, help='path to wiki file')
+    par.add_argument('--save-path', type=str, help='where to store calculated coocurances')
+    par.add_argument('--context-size', type=int, help='context size for coocurance calculation')
+    par.add_argument('--min-occurences', type=int, help='min occurences of word pairs to occur in ds for training')
+    args = par.parse_args(sys.argv)
+    get_wiki_corpus_and_dump(
+        args.wiki_txt_file,
+        args.context_size,
+        args.min_occurences,
+        args.save_path,
+        overwrite=True
+    )
