@@ -10,16 +10,15 @@ from glove_module import config
 
 
 class GloveModule:
-    def batchify(self, batch_size):
-        rows = self.cooccurrence_matrix.shape[0]
-        for i in range(0, rows, batch_size):
-            yield self.cooccurrence_matrix[i: i + batch_size, :]
+    def batchify(self, *matrix):
+        for i in range(0, len(matrix[0]), config.BATCH_SIZE):
+            yield tuple(sequence[i:i + config.BATCH_SIZE] for sequence in matrix)
 
     def __init__(self):
         self.vocab, self.cooccurrence_matrix = data_helper.get_wiki_corpus_and_dump('../small_text8',
                                                                                     config.CONTEXT_SIZE,
                                                                                     config.MIN_OCCURRENCES,
-                                                                                    overwrite=True)
+                                                                                    overwrite=False)
         vocab_size = len(self.vocab)
 
         self.graph = tf.Graph()
@@ -27,7 +26,7 @@ class GloveModule:
         with self.graph.as_default():
             with self.graph.device("/cpu:0"):
                 count_max = tf.constant([config.COUNT_MAX], dtype=tf.float32)  # tf константа -
-                scaling_factor = tf.constant([config.SCALING_FACTOR], dtype=tf.float32)  # tf константа -
+                alpha = tf.constant([config.SCALING_FACTOR], dtype=tf.float32)  # tf константа -
                 self.focal_input = tf.placeholder(tf.int32, shape=[config.BATCH_SIZE])  # tf переменная -
                 self.context_input = tf.placeholder(tf.int32, shape=[config.BATCH_SIZE])  # tf переменная -
                 self.cooccurrence_count = tf.placeholder(tf.float32, shape=[config.BATCH_SIZE])  # tf переменная -
@@ -59,7 +58,7 @@ class GloveModule:
                     1.0,
                     tf.pow(
                         tf.div(self.cooccurrence_count, count_max),
-                        scaling_factor
+                        alpha
                     )
                 )
 
@@ -80,10 +79,10 @@ class GloveModule:
                 self.optimizer = tf.train.AdagradOptimizer(config.LEARNING_RATE).minimize(self.total_loss)
 
     def begin(self):
-        # self.cooccurrences = [(pos[0], pos[1], count) for pos, count in self.cooccurrence_matrix]
-        # i_indices, j_indices, counts = zip(*self.cooccurrences)
+        self.cooccurrences = [(posw, posc, count) for posw, posc, count in self.cooccurrence_matrix]
+        i_indices, j_indices, counts = zip(*self.cooccurrences)
 
-        self.batches = list(self.batchify(config.BATCH_SIZE))
+        self.batches = list(self.batchify(i_indices, j_indices, counts))
 
         print("Begin training: {}".format(datetime.datetime.now().time()))
         print("=================")
