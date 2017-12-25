@@ -37,19 +37,11 @@ def prepare_corpus(path: str, context_size: int = 5, min_count: int = 3) -> (Dic
     :param path:
     :return: vocab and cooccurrence matrix
     """
-    word_counts = Counter()
-    cooccurrence = defaultdict(float)
-    st = clock()
-    for sentence in load_data(path):
-        word_counts.update(sentence)
-        for l_ctx, word, r_ctx in generate_contexts(sentence, context_size):
-            contexts = map(lambda t: (1 / (t[0] + 1), t[1]), list(enumerate(l_ctx[::-1])) + list(enumerate(r_ctx)))
-            for coocur, context_word in contexts:
-                cooccurrence[(word, context_word)] += coocur
-                cooccurrence[(context_word, word)] += coocur
-    print("coocurrence calc time: ", clock() - st)
     # filter rare words and index every word so we get id -> word
     st = clock()
+    word_counts = Counter()
+    for sentence in load_data(path):
+        word_counts.update(sentence)
     df = pd.DataFrame(list(word_counts.items()), columns=['word', 'counts'])
     df = df[df['counts'] > min_count]
     df = df.reset_index(drop=True)
@@ -57,16 +49,20 @@ def prepare_corpus(path: str, context_size: int = 5, min_count: int = 3) -> (Dic
     vocab_size = len(vocab)
     print("vocab get time: ", clock() - st)
     print("vocab size", vocab_size)
+
     st = clock()
-    coocur_new = []
-    for key, coocur in cooccurrence.items():
-        word, context_word = key
-        word_id = vocab.get(word, None)
-        context_word_id = vocab.get(context_word, None)
-        if word_id is not None and context_word_id is not None:
-            coocur_new.append((word_id, context_word_id, coocur))
-    print("coocurrence calc time", clock() - st)
-    return vocab, coocur_new
+    cooccurrence = defaultdict(float)
+    for sentence in load_data(path):
+        for l_ctx, word, r_ctx in generate_contexts(sentence, context_size):
+            contexts = map(lambda t: (1 / (t[0] + 1), t[1]), list(enumerate(l_ctx[::-1])) + list(enumerate(r_ctx)))
+            word_id = vocab.get(word, None)
+            for coocur, context_word in contexts:
+                context_word_id = vocab.get(context_word, None)
+                if word_id is not None and context_word_id is not None:
+                    cooccurrence[(word_id, context_word_id)] += coocur
+                    cooccurrence[(context_word_id, word_id)] += coocur
+    print("coocurrence calc time: ", clock() - st)
+    return vocab, [(k[0], k[1], v) for k, v in cooccurrence]
 
 
 def get_wiki_corpus_and_dump(
