@@ -8,6 +8,7 @@ import tensorflow as tf
 import data_helper
 from glove_module import config
 
+
 class GloveModule:
     def batchify(self, *matrix):
         for i in range(0, len(matrix[0]), config.BATCH_SIZE):
@@ -81,8 +82,7 @@ class GloveModule:
                 self.optimizer = tf.train.AdagradOptimizer(config.LEARNING_RATE).minimize(self.total_loss)
 
     def begin(self):
-        self.cooccurrences = [(posw, posc, count) for posw, posc, count in self.cooccurrence_matrix]
-        i_indices, j_indices, counts = zip(*self.cooccurrences)
+        i_indices, j_indices, counts = zip(*self.cooccurrence_matrix)
 
         self.batches = list(self.batchify(i_indices, j_indices, counts))
 
@@ -127,9 +127,9 @@ class GloveModule:
                 final_dict[word] = final_embeddings[idx, :]
             return final_dict
 
+
 glove_instance = GloveModule()
 embeddings = glove_instance.begin()
-
 
 with open('data/emb/glove{}.pkl'.format(config.EMBEDDING_SIZE), 'wb+') as f:
     pickle.dump(embeddings, f, protocol=4)

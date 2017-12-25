@@ -72,7 +72,7 @@ def prepare_corpus(path: str, context_size: int = 5, min_count: int = 3) -> (Dic
                     cooccurrence[(word_id, context_word_id)] += coocur
                     cooccurrence[(context_word_id, word_id)] += coocur
     print("coocurrence calc time: ", clock() - st)
-    return vocab, [(k[0], k[1], v) for k, v in cooccurrence]
+    return vocab, [(k[0], k[1], v) for k, v in cooccurrence.items()]
 
 
 def get_wiki_corpus_and_dump(
