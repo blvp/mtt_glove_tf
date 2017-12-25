@@ -14,10 +14,13 @@ class GloveModule:
             yield tuple(sequence[i:i + config.BATCH_SIZE] for sequence in matrix)
 
     def __init__(self):
-        self.vocab, self.cooccurrence_matrix = data_helper.get_wiki_corpus_and_dump('../small_text8',
-                                                                                    config.CONTEXT_SIZE,
-                                                                                    config.MIN_OCCURRENCES,
-                                                                                    overwrite=False)
+        self.vocab, self.cooccurrence_matrix = \
+            data_helper.get_wiki_corpus_and_dump(
+                config.DATASET_FILE,
+                config.CONTEXT_SIZE,
+                config.MIN_OCCURRENCES,
+                overwrite=True
+            )
         vocab_size = len(self.vocab)
 
         self.graph = tf.Graph()
@@ -123,7 +126,6 @@ class GloveModule:
             for word, idx in self.vocab.items():
                 final_dict[word] = final_embeddings[idx, :]
             return final_dict
-
 
 glove_instance = GloveModule()
 embeddings = glove_instance.begin()
