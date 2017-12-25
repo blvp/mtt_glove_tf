@@ -7,11 +7,21 @@ from typing import List, Dict
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+import subprocess
+
+
+def get_line_no(fp):
+    p = subprocess.Popen(['wc', '-l', fp], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result, err = p.communicate()
+    if p.returncode != 0:
+        raise IOError(err)
+    return int(result.strip().split()[0])
 
 
 def load_data(path: str):
     with open(path, 'r') as f:
-        for line in f:
+        for line in tqdm(f, total=get_line_no(path)):
             yield tokenize(line)
 
 

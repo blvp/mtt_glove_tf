@@ -5,3 +5,5 @@ requests
 pandas
 scikit_learn
 tensorflow
+pyspark
+tqdm
