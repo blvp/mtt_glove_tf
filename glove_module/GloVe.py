@@ -15,15 +15,19 @@ class GloveModule:
             yield tuple(sequence[i:i + config.BATCH_SIZE] for sequence in matrix)
 
     def __init__(self):
-        self.vocab, self.cooccurrence_matrix = \
+        print("Load vocab and cooc matrix...")
+        self.vocab, cooccurrence_matrix = \
             data_helper.get_wiki_corpus_and_dump(
                 config.DATASET_FILE,
                 config.CONTEXT_SIZE,
                 config.MIN_OCCURRENCES,
-                overwrite=True
+                save_path='./data/wiki_prepared_250m_2/',
+                overwrite=False
             )
+        self.cooccurrence_matrix = list(cooccurrence_matrix.items())
         vocab_size = len(self.vocab)
-
+        print("Done loading vocab and cooc.")
+        print("Creating tensorflow graph...")
         self.graph = tf.Graph()
 
         with self.graph.as_default():
@@ -78,14 +82,20 @@ class GloveModule:
 
                 single_losses = tf.multiply(weighting_factor, distance_expr)
                 self.total_loss = tf.reduce_sum(single_losses)
+                # with self.graph.device("/cpu:0"):
                 tf.summary.scalar('loss', self.total_loss)
+                # self.optimizer = tf.train.AdamOptimizer(config.LEARNING_RATE).minimize(self.total_loss)
                 self.optimizer = tf.train.AdagradOptimizer(config.LEARNING_RATE).minimize(self.total_loss)
+        print("Done creating")
 
     def begin(self):
-        i_indices, j_indices, counts = zip(*self.cooccurrence_matrix)
+        print("Prepare cooccurrence matrix...")
 
-        self.batches = list(self.batchify(i_indices, j_indices, counts))
-
+        #i_indices, j_indices, counts = zip(*self.cooccurrence_matrix)
+        print("Done preparing")
+        print("Get batches...")
+        #self.batches = list(self.batchify(i_indices, j_indices, cooc))
+        print("Done get batches.")
         print("Begin training: {}".format(datetime.datetime.now().time()))
         print("=================")
         sys.stdout.flush()
@@ -94,13 +104,19 @@ class GloveModule:
             batch_writer = tf.summary.FileWriter('./logs/batch')
             tf.initialize_all_variables().run()
             for epoch in range(config.NUM_EPOCHS):
-                shuffle(self.batches)
+                #shuffle(self.batches)
                 print("Batches shuffled")
                 print("-----------------")
                 sys.stdout.flush()
                 accumulated_loss = 0
-                for batch_index, batch in enumerate(self.batches):
-                    i_s, j_s, counts = batch
+                total = len(self.cooccurrence_matrix)
+                num_batches = total/config.BATCH_SIZE
+                batch_index = 0
+                for i in range(0, total, config.BATCH_SIZE):
+                    batch_index += 1
+                    ww, counts = zip(*self.cooccurrence_matrix[i:i+config.BATCH_SIZE])
+                    i_s, j_s = zip(*ww)
+                    #i_s, j_s, counts = batch
                     if len(counts) != config.BATCH_SIZE:
                         continue
                     feed_dict = {self.focal_input: i_s, self.context_input: j_s, self.cooccurrence_count: counts}
@@ -109,10 +125,10 @@ class GloveModule:
                     accumulated_loss += total_loss_
                     if (batch_index + 1) % config.REPORT_BATCH_SIZE == 0:
                         print("Epoch: {0}/{1}".format(epoch + 1, config.NUM_EPOCHS))
-                        print("Batch: {0}/{1}".format(batch_index + 1, len(self.batches)))
+                        print("Batch: {0}/{1}".format(batch_index + 1, num_batches))
                         print("Average loss: {}".format(accumulated_loss / config.REPORT_BATCH_SIZE))
                         print("-----------------")
-                        batch_writer.add_summary(summaries, epoch * len(self.batches) + batch_index)
+                        batch_writer.add_summary(summaries, epoch * num_batches + batch_index)
                         sys.stdout.flush()
                         accumulated_loss = 0
                 print("Epoch finished: {}".format(datetime.datetime.now().time()))

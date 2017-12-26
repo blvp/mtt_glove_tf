@@ -70,9 +70,9 @@ def prepare_corpus(path: str, context_size: int = 5, min_count: int = 3) -> (Dic
                 context_word_id = vocab.get(context_word, None)
                 if word_id is not None and context_word_id is not None:
                     cooccurrence[(word_id, context_word_id)] += coocur
-                    cooccurrence[(context_word_id, word_id)] += coocur
+                    # cooccurrence[(context_word_id, word_id)] += coocur
     print("coocurrence calc time: ", clock() - st)
-    return vocab, [(k[0], k[1], v) for k, v in cooccurrence.items()]
+    return vocab, cooccurrence
 
 
 def get_wiki_corpus_and_dump(
@@ -84,23 +84,23 @@ def get_wiki_corpus_and_dump(
 ):
     vocab_file = os.path.join(save_path, 'vocab.pkl')
     coocur_file = os.path.join(save_path, 'coocur.pkl')
+
     if not overwrite:
         if os.path.exists(vocab_file) and os.path.exists(coocur_file):
             with open(vocab_file, 'rb+') as f:
                 vocab = pickle.load(f)
             with open(coocur_file, 'rb+') as f:
                 coocur = pickle.load(f)
-        else:
-            raise EnvironmentError("wrong usage of method: when using overwrite=False, please make sure that "
-                                   "vocab.pkl and coocur.pkl exists in path %s".format(save_path))
-    else:
-        vocab, coocur = prepare_corpus(wiki_file_path, context_size, min_occurences)
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-        with open(vocab_file, 'wb+') as f:
-            pickle.dump(vocab, f, protocol=4)
-        with open(coocur_file, 'wb+') as f:
-            pickle.dump(coocur, f, protocol=4)
+            print("found calculated coocur and vocab.")
+            return vocab, coocur
+    print("calculating coocur started")
+    vocab, coocur = prepare_corpus(wiki_file_path, context_size, min_occurences)
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    with open(vocab_file, 'wb+') as f:
+        pickle.dump(vocab, f, protocol=4)
+    with open(coocur_file, 'wb+') as f:
+        pickle.dump(coocur, f, protocol=4)
     return vocab, coocur
 
 
